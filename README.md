@@ -1,78 +1,56 @@
-# Biblioteka SLO 5 — MVP v0.4
+# Biblioteka SLO 5 — v0.5
 
-Naprawiono dwa błędy z v0.3:
+System wypożyczeń self-service dla biblioteki szkolnej.
+**Wersja szkolna** działa w Google Apps Script na koncie Google Workspace szkoły.
+**Wersja testowa** (`demo_local.html`, GitHub Pages) służy tylko do prób skanera — bez prawdziwych danych.
 
-1. Skanowanie: zamiast odczytu pełnego zdjęcia przez stare `@zxing/library`
-   używany jest `html5-qrcode`. Są dwa tryby:
-   - kamera na żywo,
-   - zrobienie / wybranie zdjęcia (odczyt zdjęcia: natywny BarcodeDetector + ZXing z wieloma próbami skali, obrotu i kadru; `html5-qrcode` jako ostatnia próba).
-2. System nie blokuje już poprawnych kodów eBiblio tylko dlatego, że nie ma jeszcze
-   pełnej bazy metadanych. Akceptowane rodziny kodów:
-   `LEK`, `LTZN`, `SZTFIL`, `KLO`, `OWs`, `WsPl`, `HIS`, `POE`, `KLP`.
+## Co nowego w v0.5 — ochrona danych
+- **Logowanie kontem szkolnym.** Uczeń nie wpisuje e-maila — aplikacja sama rozpoznaje zalogowane konto Google. Nie da się podszyć pod innego ucznia.
+- **Dostęp tylko dla domeny szkoły** (`ALLOWED_DOMAIN`).
+- **Bibliotekarze według listy e-maili** (`ADMINS`) zamiast PIN-u w kodzie. Tylko oni potwierdzają zwroty i widzą ewidencję.
+- **Ewidencja w Arkuszu Google** tworzonym na Dysku szkoły: zakładki *Wypożyczenia* (stan) i *Dziennik* (każde działanie). Minimum danych: data, akcja, kod, tytuł, e-mail.
+- **Raport dla czytelnika** („Moje konto”): aktualne wypożyczenia, zwrócone książki, historia działań, informacja o przechowywanych danych. Raport PDF na e-mail ucznia albo wersja do druku.
+- **Retencja:** codziennie o 6:00 e-maile w zamkniętych wypożyczeniach starszych niż `RETENTION_DAYS` (domyślnie 365 dni) zamieniane są na „zanonimizowano”.
+- **Przypomnienia e-mail:** 3 dni przed terminem i po terminie (po jednym razie).
+- Skaner bez zmian: kamera na żywo + mocny odczyt ze zdjęcia + ręczne wpisanie. Obsługiwane rodziny kodów: `LEK`, `LTZN`, `SZTFIL`, `KLO`, `OWs`, `WsPl`, `HIS`, `POE`, `KLP`.
 
-`LEK000655` ma już metadane testowe: **Molière, Skąpiec**.
+## Wdrożenie (Google Apps Script)
+Rób to z **konta szkolnego** (najlepiej konta biblioteki), nie prywatnego.
 
-## Test GitHub Pages
-Podmień tylko `demo_local.html`. Po publikacji:
-- wpisz dowolny testowy e-mail,
-- ręcznie wpisz `LEK000655` i kliknij „Wypożycz kod”,
-- następnie sprawdź kamerę na żywo,
-- potem tryb „zdjęcie”.
+1. https://script.google.com → Nowy projekt → nazwa „Biblioteka SLO 5”.
+2. Wklej `Code.gs`. Dodaj plik HTML o nazwie dokładnie `Index` i wklej `Index.html`.
+3. Ustawienia projektu → zaznacz „Pokaż plik manifestu appsscript.json” → wklej `appsscript.json`.
+4. W edytorze wybierz funkcję **`setup`** → Uruchom → zaakceptuj uprawnienia.
+   Tworzy arkusz ewidencji, ustawia Ciebie jako administratora, domenę szkoły i codzienne zadanie.
+   Link do arkusza pojawi się w „Dzienniku wykonania”.
+5. Ustawienia projektu → **Właściwości skryptu** — sprawdź/uzupełnij:
+   - `ADMINS` — e-maile bibliotekarzy po przecinku,
+   - `ALLOWED_DOMAIN` — domena kont uczniów (np. `slo5.edu.pl`),
+   - `RETENTION_DAYS` — okres przechowywania (ustala szkoła/IOD),
+   - `CONTACT` — kontakt w sprawie danych (np. e-mail IOD).
+6. Wdróż → Nowe wdrożenie → Aplikacja internetowa:
+   - **Wykonaj jako: Ja**
+   - **Kto ma dostęp: każdy w domenie szkoły**
+7. Link rozdaj uczniom (np. kod QR przy regale).
 
-## Apps Script
-`Index.html` i `Code.gs` są również zaktualizowane do tego samego modelu.
+### Arkusz ewidencji
+- Zawiera dane osobowe — **udostępniaj tylko bibliotekarzom**. Nie kopiuj go na prywatne dyski.
+- Nie edytuj ręcznie kolumn *Status* i *E-mail*, chyba że korygujesz błąd.
 
----
+### Uwaga o kamerze
+W niektórych przeglądarkach aplikacje Apps Script blokują kamerę na żywo. Wtedy użyj przycisków „zdjęcie” — otwierają aparat telefonu i działają zawsze.
 
-## Instrukcje z v0.3
+## Wersja testowa — GitHub Pages
+`demo_local.html` zapisuje stan tylko w przeglądarce. Nie wpisuj prawdziwych e-maili.
+Repozytorium zawiera wyłącznie kod — **nigdy nie wrzucaj tu arkusza ani eksportów z danymi uczniów.**
 
-To jest DZIAŁAJĄCY PROTOTYP systemu, nie baza danych.
+## RODO — do uzgodnienia ze szkołą
+Administratorem danych jest szkoła. Przed startem:
+- pokaż ten opis inspektorowi ochrony danych (IOD),
+- ustal okres przechowywania (`RETENTION_DAYS`),
+- opublikuj klauzulę informacyjną — szkic w `KLAUZULA_INFORMACYJNA.md`.
 
-## Co działa
-- wypożyczenie egzemplarza po kodzie,
-- skan kodu paskowego ze zdjęcia zrobionego telefonem,
-- ręczne wpisanie kodu jako fallback,
-- lista „Moje książki”,
-- zgłoszenie zwrotu,
-- zwrot oczekujący na fizyczne potwierdzenie,
-- potwierdzenie zwrotu przez administratora,
-- blokada podwójnego wypożyczenia,
-- 28-dniowy termin zwrotu,
-- wspólny stan wypożyczeń w wersji Apps Script.
-
-## Katalog testowy
-Wbudowanych jest 18 prawdziwych kodów z raportu, m.in.:
-LEK000599, LEK000600, LEK000603, LEK000604, LEK000661–LEK000673.
-
-Dane z eBiblio podmienimy później bez zmiany logiki aplikacji.
-
-## Najszybszy test bez wdrożenia
-Otwórz `demo_local.html` w przeglądarce.
-Ta wersja zapisuje stan tylko w localStorage danego urządzenia.
-
-## Wersja wieloużytkownikowa — Google Apps Script
-1. Otwórz https://script.google.com i utwórz nowy projekt.
-2. Wklej `Code.gs`.
-3. Dodaj plik HTML o nazwie dokładnie `Index` i wklej `Index.html`.
-4. Ustaw strefę czasową projektu na Europe/Warsaw.
-5. Wdróż: `Wdróż → Nowe wdrożenie → Aplikacja internetowa`.
-6. Uruchamiaj jako: `Ja`.
-7. Dostęp: użytkownicy w domenie szkoły (na test może być szerszy).
-8. Otwórz link na telefonie.
-
-W prototypie uczeń wpisuje e-mail ręcznie. Google SSO dołożymy po potwierdzeniu działania całego flow.
-PIN administratora MVP: 2468 (zmień w `Code.gs`).
-
-## Test end-to-end
-1. Wpisz np. `uczen@test.pl`.
-2. Wypożycz `LEK000604`.
-3. Wejdź w „Moje książki”.
-4. Zgłoś zwrot `LEK000604`.
-5. W sekcji administratora wpisz PIN `2468`.
-6. Potwierdź fizyczny zwrot tego samego kodu.
-7. Egzemplarz można ponownie wypożyczyć.
-
-## Repozytorium i GitHub
-- `Code.gs`, `Index.html`, `appsscript.json` — wersja Google Apps Script (można synchronizować przez `clasp`: `npm i -g @google/clasp`, `clasp login`, `clasp clone <scriptId>` lub `clasp create`, potem `clasp push`; `.clasp.json` jest w `.gitignore`).
-- `demo_local.html` — samodzielne demo; na GitHub Pages dostępne jako `/demo_local.html` (lub dodaj `index.html` z przekierowaniem).
-- **Uwaga:** PIN administratora jest w kodzie — przy publicznym repo zmień go przed wdrożeniem produkcyjnym albo trzymaj repo jako prywatne.
+## Pliki
+- `Code.gs`, `Index.html`, `appsscript.json` — aplikacja Apps Script,
+- `demo_local.html`, `zxing.min.js`, `index.html` — wersja testowa na GitHub Pages,
+- `.claspignore` — do synchronizacji przez `clasp` (opcjonalnie).

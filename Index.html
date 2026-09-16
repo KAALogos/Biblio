@@ -41,25 +41,32 @@
     .scanhead{display:flex;justify-content:space-between;align-items:center;gap:10px}
     .scanhead button{width:auto;padding:10px 12px;font-size:14px}
     .badge{display:inline-block;background:#eef2f7;padding:4px 8px;border-radius:999px;font-size:12px;color:#4b5563}
+      .who{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px}
+    .late{color:#a32626;font-weight:700}
+    .row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-top:1px solid #eee}
+    .row:first-child{border-top:0}
+    .row button{width:auto;padding:9px 12px;font-size:14px}
+    .sect{margin-top:14px;font-weight:700;font-size:14px}
+    .hist{font-size:13px;color:#374151;padding:6px 0;border-top:1px solid #f0f0f0}
+    details summary{cursor:pointer;font-weight:700;margin-top:12px}
+    a.btn{display:block;text-align:center;text-decoration:none;border-radius:13px;padding:15px 12px;font-weight:700;font-size:16px}
   </style>
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <h1>Biblioteka SLO 5</h1>
-    <div class="sub">MVP self-service · skanuje kody eBiblio</div>
+    <div class="sub">wypożyczenia self-service · konto szkolne Google</div>
+    <div class="who"><span class="badge" id="who">Sprawdzam konto…</span><span class="badge hidden" id="adminBadge">bibliotekarz</span></div>
   </div>
 
-  <div class="card">
-    <label class="sub">Twój szkolny e-mail</label>
-    <input id="email" type="email" placeholder="uczen@slo5.edu.pl" autocomplete="email">
-
+  <div class="card" id="mainCard">
     <div class="grid">
       <button class="primary" onclick="startLive('checkout')">📷 Wypożycz — kamera</button>
       <button class="return" onclick="startLive('return')">↩️ Oddaj — kamera</button>
       <button class="secondary" onclick="choosePhoto('checkout')">🖼️ Wypożycz — zdjęcie</button>
       <button class="secondary" onclick="choosePhoto('return')">🖼️ Oddaj — zdjęcie</button>
-      <button class="secondary wide" onclick="loadLoans()">📚 Moje książki</button>
+      <button class="secondary wide" onclick="loadReport()">👤 Moje konto i raport</button>
     </div>
 
     <input id="photoInput" type="file" accept="image/*" capture="environment">
@@ -87,20 +94,33 @@
     <div id="reader"></div>
   </div>
 
-  <div id="loansCard" class="card hidden">
-    <div class="title">Moje książki</div>
-    <div id="loans"></div>
+  <div id="reportCard" class="card hidden">
+    <div class="title">Moje konto</div>
+    <div class="tiny" id="repMeta"></div>
+    <div class="sect">Aktualne wypożyczenia</div>
+    <div id="repActive"></div>
+    <details><summary>Zwrócone książki</summary><div id="repReturned"></div></details>
+    <details><summary>Historia moich działań</summary><div id="repHistory"></div></details>
+    <details><summary>Jakie dane o mnie przechowujecie?</summary><div id="repData" class="meta" style="line-height:1.5;margin-top:6px"></div></details>
+    <div class="grid">
+      <button class="secondary" onclick="emailReport()">✉️ Wyślij raport PDF na mój e-mail</button>
+      <a class="btn secondary" id="printLink" target="_blank" rel="noopener">🖨️ Wersja do druku</a>
+    </div>
   </div>
 
-  <div class="card">
-    <div class="title">Administrator / skrzynka zwrotów</div>
-    <div class="tiny">PIN demonstracyjny: 2468</div>
-    <input id="adminPin" placeholder="PIN administratora" inputmode="numeric" style="margin-top:10px">
+  <div id="adminCard" class="card hidden">
+    <div class="title">Bibliotekarz — skrzynka zwrotów</div>
     <div class="grid">
       <button class="admin" onclick="startLive('confirm')">✓ Potwierdź kamerą</button>
       <button class="secondary" onclick="choosePhoto('confirm')">🖼️ Ze zdjęcia</button>
       <button class="secondary wide" onclick="manual('confirm')">Potwierdź wpisany kod</button>
     </div>
+    <div class="sect">Zwroty do potwierdzenia</div>
+    <div id="admPending"></div>
+    <div class="sect">Po terminie</div>
+    <div id="admOverdue"></div>
+    <div class="tiny" id="admMeta"></div>
+    <div class="grid"><a class="btn secondary wide" id="sheetLink" target="_blank" rel="noopener">📊 Arkusz ewidencji</a></div>
   </div>
 </div>
 
@@ -184,12 +204,15 @@ async function decodeBarcodeFile(file){
 let mode = 'checkout';
 let scanner = null;
 let scannerRunning = false;
-
-const emailEl = document.getElementById('email');
+let SESSION = null;
 const photoInput = document.getElementById('photoInput');
 
-emailEl.value = localStorage.getItem('bibEmail') || '';
-emailEl.addEventListener('change', () => localStorage.setItem('bibEmail', emailEl.value.trim()));
+function api(name, ...args) {
+  return new Promise((resolve, reject) => {
+    google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[name](...args);
+  });
+}
+function errText(err) { return (err && err.message ? err.message : String(err)).replace(/^Exception:\s*/, ''); }
 
 function normalizeCode(v) {
   const s = String(v || '').trim().replace(/[\s\-]+/g, '').toUpperCase();
@@ -197,25 +220,35 @@ function normalizeCode(v) {
   return m ? m[0] : s;
 }
 
+async function init() {
+  try {
+    SESSION = await api('getSession');
+    document.getElementById('who').textContent = 'Zalogowano: ' + SESSION.email;
+    document.getElementById('printLink').href = SESSION.appUrl + '?view=raport';
+    if (SESSION.isAdmin) {
+      document.getElementById('adminBadge').classList.remove('hidden');
+      document.getElementById('adminCard').classList.remove('hidden');
+      loadAdmin();
+    }
+  } catch (err) {
+    document.getElementById('who').textContent = 'Brak dostępu';
+    setStatus(errText(err), 'err');
+  }
+}
+
 async function startLive(nextMode) {
   mode = nextMode;
-  if (mode !== 'confirm' && !validEmail()) return;
   await stopLive();
   document.getElementById('scannerCard').classList.remove('hidden');
   setStatus('Uruchamiam kamerę…', 'info');
-
   scanner = new Html5Qrcode('reader', {
     formatsToSupport: [
-      Html5QrcodeSupportedFormats.CODE_128,
-      Html5QrcodeSupportedFormats.CODE_39,
-      Html5QrcodeSupportedFormats.EAN_13,
-      Html5QrcodeSupportedFormats.EAN_8,
-      Html5QrcodeSupportedFormats.ITF,
-      Html5QrcodeSupportedFormats.CODABAR
+      Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
+      Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
+      Html5QrcodeSupportedFormats.ITF, Html5QrcodeSupportedFormats.CODABAR
     ],
     verbose: false
   });
-
   try {
     await scanner.start(
       { facingMode: 'environment' },
@@ -224,7 +257,6 @@ async function startLive(nextMode) {
         if (!scannerRunning) return;
         const code = normalizeCode(decodedText);
         await stopLive();
-        setStatus('Odczytano: ' + code, 'info');
         run(code);
       },
       () => {}
@@ -233,31 +265,22 @@ async function startLive(nextMode) {
     setStatus('Kamera działa. Nakieruj ją na kod paskowy.', 'info');
   } catch (err) {
     scannerRunning = false;
-    setStatus(
-      'Nie udało się uruchomić kamery. Zezwól przeglądarce na dostęp do aparatu albo użyj przycisku „zdjęcie”.\n' +
-      (err && err.message ? err.message : String(err || '')),
-      'err'
-    );
+    await stopLive();
+    setStatus('Nie udało się uruchomić kamery na żywo. Użyj przycisku „zdjęcie” — działa zawsze.\n' + errText(err), 'err');
   }
 }
 
 async function stopLive() {
-  if (scanner && scannerRunning) {
-    try { await scanner.stop(); } catch {}
-  }
-  if (scanner) {
-    try { await scanner.clear(); } catch {}
-  }
+  if (scanner && scannerRunning) { try { await scanner.stop(); } catch (e) {} }
+  if (scanner) { try { await scanner.clear(); } catch (e) {} }
   scanner = null;
   scannerRunning = false;
   document.getElementById('scannerCard').classList.add('hidden');
-  const readerEl = document.getElementById('reader');
-  readerEl.innerHTML = '';
+  document.getElementById('reader').innerHTML = '';
 }
 
 function choosePhoto(nextMode) {
   mode = nextMode;
-  if (mode !== 'confirm' && !validEmail()) return;
   photoInput.value = '';
   photoInput.click();
 }
@@ -265,107 +288,96 @@ function choosePhoto(nextMode) {
 photoInput.addEventListener('change', async event => {
   const file = event.target.files && event.target.files[0];
   if (!file) return;
-  document.getElementById('scannerCard').classList.remove('hidden');
   setStatus('Rozpoznaję kod ze zdjęcia…', 'info');
-
-  const fileScanner = new Html5Qrcode('reader');
-  try {
-    let decodedText = null;
-    try { decodedText = await decodeBarcodeFile(file); } catch (e) {}
-    if (!decodedText) decodedText = await fileScanner.scanFile(file, true);
-    const code = normalizeCode(decodedText);
-    setStatus('Odczytano: ' + code, 'info');
-    run(code);
-  } catch (err) {
-    setStatus(
-      'Nie udało się odczytać kodu ze zdjęcia. Spróbuj zrobić zdjęcie bliżej, bez cienia i tak, aby cały kod był poziomo w kadrze. Możesz też użyć skanowania kamerą na żywo.\n' +
-      (err && err.message ? err.message : ''),
-      'err'
-    );
-  } finally {
-    try { await fileScanner.clear(); } catch {}
+  let decodedText = null;
+  try { decodedText = await decodeBarcodeFile(file); } catch (e) {}
+  if (!decodedText && window.Html5Qrcode) {
+    document.getElementById('scannerCard').classList.remove('hidden');
+    const fileScanner = new Html5Qrcode('reader');
+    try { decodedText = await fileScanner.scanFile(file, true); } catch (e) {}
+    try { await fileScanner.clear(); } catch (e) {}
     document.getElementById('reader').innerHTML = '';
     document.getElementById('scannerCard').classList.add('hidden');
   }
+  if (!decodedText) {
+    return setStatus('Nie udało się odczytać kodu ze zdjęcia. Zrób zdjęcie bliżej, ostro i bez odblasku — albo wpisz kod ręcznie.', 'err');
+  }
+  run(normalizeCode(decodedText));
 });
 
 function manual(nextMode) {
   mode = nextMode;
-  const code = normalizeCode(document.getElementById('manualCode').value);
-  run(code);
+  run(normalizeCode(document.getElementById('manualCode').value));
 }
 
-function validEmail() {
-  const email = emailEl.value.trim();
-  if (!email || !email.includes('@')) {
-    setStatus('Najpierw wpisz szkolny e-mail.', 'err');
-    return false;
-  }
-  localStorage.setItem('bibEmail', email);
-  return true;
-}
-
-function run(rawCode) {
-  const code = normalizeCode(rawCode);
+async function run(code) {
   if (!code) return setStatus('Brak kodu.', 'err');
-
-  const email = emailEl.value.trim().toLowerCase();
-  if (mode !== 'confirm' && !validEmail()) return;
-
+  const m = mode;
   setStatus('Przetwarzam ' + code + '…', 'info');
-
-  const call = google.script.run
-    .withFailureHandler(err => {
-      setStatus((err && err.message ? err.message : String(err)).replace(/^Exception:\s*/, ''), 'err');
-    })
-    .withSuccessHandler(res => {
-      if (mode === 'checkout') {
-        setStatus('✓ Wypożyczono\n' + res.title + (res.author ? '\n' + res.author : '') + '\nTermin zwrotu: ' + res.due, 'ok');
-      } else if (mode === 'return') {
-        setStatus('✓ Zwrot zgłoszony\n' + res.title + '\nWłóż książkę do skrzynki zwrotów.', 'ok');
-      } else {
-        setStatus('✓ Zwrot potwierdzony\n' + res.title, 'ok');
-      }
-      document.getElementById('manualCode').value = '';
-      loadLoans(false);
-    });
-
-  if (mode === 'checkout') call.checkout(code, email);
-  else if (mode === 'return') call.requestReturn(code, email);
-  else call.confirmReturn(code, document.getElementById('adminPin').value);
+  try {
+    if (m === 'checkout') {
+      const res = await api('checkout', code);
+      setStatus('✓ Wypożyczono\n' + res.title + (res.author ? '\n' + res.author : '') + '\nTermin zwrotu: ' + res.due, 'ok');
+    } else if (m === 'return') {
+      const res = await api('requestReturn', code);
+      setStatus('✓ Zwrot zgłoszony\n' + res.title + '\nWłóż książkę do skrzynki zwrotów.', 'ok');
+    } else {
+      const res = await api('confirmReturn', code);
+      setStatus('✓ Zwrot potwierdzony\n' + res.title + (res.wasRequested ? '' : '\n(uczeń nie zgłosił wcześniej zwrotu)'), 'ok');
+    }
+    document.getElementById('manualCode').value = '';
+    if (!document.getElementById('reportCard').classList.contains('hidden')) loadReport(false);
+    if (SESSION && SESSION.isAdmin) loadAdmin();
+  } catch (err) {
+    setStatus(errText(err), 'err');
+  }
 }
 
-function loadLoans(scroll = true) {
-  const email = emailEl.value.trim().toLowerCase();
-  if (!email || !email.includes('@')) return setStatus('Najpierw wpisz szkolny e-mail.', 'err');
-
-  google.script.run
-    .withFailureHandler(err => {
-      setStatus((err && err.message ? err.message : String(err)).replace(/^Exception:\s*/, ''), 'err');
-    })
-    .withSuccessHandler(rows => {
-      const card = document.getElementById('loansCard');
-      const box = document.getElementById('loans');
-      card.classList.remove('hidden');
-
-      if (!rows.length) {
-        box.innerHTML = '<div class="meta" style="margin-top:10px">Brak aktualnych wypożyczeń.</div>';
-      } else {
-        box.innerHTML = rows.map(x => {
-          const state = x.status === 'zwrot_oczekuje'
-            ? '<span class="pending">zwrot oczekuje</span>'
-            : 'aktywne';
-          return `<div class="loan">
-            <div class="title">${esc(x.title)}</div>
-            <div class="meta">${esc(x.author || '')}</div>
-            <div class="meta">${esc(x.code)} · termin ${esc(x.due)} · ${state}</div>
-          </div>`;
-        }).join('');
-      }
-      if (scroll) card.scrollIntoView({ behavior:'smooth', block:'start' });
-    })
-    .getMyLoans(email);
+async function loadReport(scroll = true) {
+  const card = document.getElementById('reportCard');
+  try {
+    const r = await api('getMyReport');
+    card.classList.remove('hidden');
+    document.getElementById('repMeta').textContent = r.email + ' · stan na ' + r.generatedAt;
+    document.getElementById('repActive').innerHTML = r.active.length ? r.active.map(x => `<div class="loan">
+        <div class="title">${esc(x.title)}</div>
+        <div class="meta">${esc(x.author || '')}</div>
+        <div class="meta">${esc(x.code)} · wypożyczono ${esc(x.checkoutAt)} · termin <span class="${x.overdue ? 'late' : ''}">${esc(x.due)}${x.overdue ? ' (po terminie)' : ''}</span>
+        · ${x.status === 'zwrot_oczekuje' ? '<span class="pending">zwrot oczekuje na potwierdzenie</span>' : 'wypożyczona'}</div>
+      </div>`).join('') : '<div class="meta">Brak aktualnych wypożyczeń.</div>';
+    document.getElementById('repReturned').innerHTML = r.returned.length ? r.returned.map(x =>
+      `<div class="hist">${esc(x.returnedAt)} · ${esc(x.title)} (${esc(x.code)})</div>`).join('') : '<div class="meta">Brak.</div>';
+    document.getElementById('repHistory').innerHTML = r.history.length ? r.history.map(h =>
+      `<div class="hist">${esc(h.at)} · ${esc(h.action)} · ${esc(h.title)} (${esc(h.code)})</div>`).join('') : '<div class="meta">Brak zapisanych działań.</div>';
+    const d = r.dataInfo;
+    document.getElementById('repData').innerHTML =
+      `<b>Zakres:</b> ${esc(d.stored)}.<br><b>Cel:</b> ${esc(d.purpose)}.<br><b>Okres:</b> ${esc(d.retention)}.<br><b>Dostęp:</b> ${esc(d.access)}.<br><b>Kontakt:</b> ${esc(d.contact)}.`;
+    if (scroll) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (err) {
+    setStatus(errText(err), 'err');
+  }
 }
+
+async function emailReport() {
+  setStatus('Wysyłam raport…', 'info');
+  try {
+    const r = await api('emailMyReport');
+    setStatus('✓ Raport PDF wysłany na ' + r.sentTo, 'ok');
+  } catch (err) { setStatus(errText(err), 'err'); }
+}
+
+async function loadAdmin() {
+  try {
+    const o = await api('getAdminOverview');
+    const line = (x, btn) => `<div class="row"><div><div class="title">${esc(x.title)}</div>
+      <div class="meta">${esc(x.code)} · ${esc(x.email)} · termin ${esc(x.due)}</div></div>${btn ? `<button class="admin" onclick="confirmCode('${esc(x.code)}')">Potwierdź</button>` : ''}</div>`;
+    document.getElementById('admPending').innerHTML = o.pending.length ? o.pending.map(x => line(x, true)).join('') : '<div class="meta">Brak.</div>';
+    document.getElementById('admOverdue').innerHTML = o.overdue.length ? o.overdue.map(x => line(x, false)).join('') : '<div class="meta">Brak.</div>';
+    document.getElementById('admMeta').textContent = 'Otwartych wypożyczeń: ' + o.activeCount;
+    document.getElementById('sheetLink').href = o.sheetUrl;
+  } catch (err) { setStatus(errText(err), 'err'); }
+}
+function confirmCode(code) { mode = 'confirm'; run(code); }
 
 function setStatus(text, kind) {
   const el = document.getElementById('status');
@@ -373,14 +385,10 @@ function setStatus(text, kind) {
   el.textContent = text;
 }
 function esc(s) {
-  return String(s ?? '').replace(/[&<>"']/g, c => ({
-    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
-  }[c]));
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[c]));
 }
 
-if (!window.isSecureContext) {
-  setStatus('Uwaga: skanowanie kamerą wymaga HTTPS. GitHub Pages spełnia ten warunek.', 'err');
-}
+init();
 </script>
 </body>
 </html>
