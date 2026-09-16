@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <base target="_top">
+  <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+  <style>
+    *{box-sizing:border-box} body{margin:0;background:#f4f5f7;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#171717}
+    .wrap{max-width:560px;margin:auto;padding:20px 14px 48px}.hero{padding:8px 2px 18px}
+    h1{font-size:27px;margin:0 0 4px}.sub{color:#6b7280;font-size:14px}
+    .card{background:white;border:1px solid #e5e7eb;border-radius:18px;padding:16px;margin:0 0 14px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+    input{width:100%;padding:14px;border:1px solid #d1d5db;border-radius:12px;font-size:16px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+    button{border:0;border-radius:13px;padding:15px 12px;font-weight:700;font-size:16px;cursor:pointer}
+    .primary{background:#111827;color:white}.secondary{background:#e5e7eb;color:#111827}.return{background:#e8f5ec;color:#185b34}.admin{background:#fff0d6;color:#7a4d00}
+    .wide{grid-column:1/-1}.status{display:none;padding:13px;border-radius:12px;margin-top:12px;white-space:pre-line}
+    .ok{display:block;background:#e9f8ee;color:#17633b}.err{display:block;background:#feecec;color:#a32626}.info{display:block;background:#eef2f7;color:#374151}
+    .loan{padding:12px 0;border-top:1px solid #eee}.loan:first-child{border-top:0}.title{font-weight:700}.meta{color:#6b7280;font-size:13px;margin-top:2px}.pending{color:#925d00;font-weight:700}
+    .hidden{display:none}.tiny{font-size:12px;color:#6b7280;margin-top:10px}
+    #cameraInput{display:none}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <h1>Biblioteka SLO 5</h1>
+    <div class="sub">działający prototyp self-service</div>
+  </div>
+
+  <div class="card">
+    <label class="sub">Twój szkolny e-mail</label>
+    <input id="email" type="email" placeholder="uczen@szkola.pl" autocomplete="email">
+
+    <div class="grid">
+      <button class="primary" onclick="begin('checkout')">📷 Wypożycz</button>
+      <button class="return" onclick="begin('return')">↩️ Oddaj</button>
+      <button class="secondary wide" onclick="loadLoans()">📚 Moje książki</button>
+    </div>
+
+    <input id="cameraInput" type="file" accept="image/*" capture="environment">
+
+    <div style="margin-top:12px">
+      <input id="manualCode" placeholder="albo wpisz kod, np. LEK000604">
+      <div class="grid">
+        <button class="secondary" onclick="manual('checkout')">Wypożycz kod</button>
+        <button class="secondary" onclick="manual('return')">Oddaj kod</button>
+      </div>
+    </div>
+
+    <div id="status" class="status"></div>
+  </div>
+
+  <div id="loansCard" class="card hidden">
+    <div class="title">Moje książki</div>
+    <div id="loans"></div>
+  </div>
+
+  <div class="card">
+    <div class="title">Administrator / skrzynka zwrotów</div>
+    <div class="tiny">PIN demonstracyjny: 2468</div>
+    <input id="adminPin" placeholder="PIN administratora" inputmode="numeric" style="margin-top:10px">
+    <div class="grid">
+      <button class="admin wide" onclick="begin('confirm')">✓ Zeskanuj i potwierdź zwrot</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const CATALOG={"LEK000599": {"title": "Zemsta", "author": "Aleksander Fredro"}, "LEK000600": {"title": "Romeo i Julia", "author": "William Shakespeare"}, "LEK000601": {"title": "Konrad Wallenrod", "author": "Adam Mickiewicz"}, "LEK000603": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000604": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000661": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000662": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000663": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000664": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000665": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000666": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000667": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000668": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000669": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000670": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000671": {"title": "Nowy wspaniały świat", "author": "Aldous Huxley"}, "LEK000672": {"title": "Madame", "author": "Antoni Libera"}, "LEK000673": {"title": "Madame", "author": "Antoni Libera"}};
+let mode='checkout';
+const reader=new ZXing.BrowserMultiFormatReader();
+const emailEl=document.getElementById('email');
+const input=document.getElementById('cameraInput');
+emailEl.value=localStorage.getItem('bibEmail')||'';
+emailEl.addEventListener('change',()=>localStorage.setItem('bibEmail',emailEl.value.trim()));
+input.addEventListener('change', async e=>{
+  const f=e.target.files&&e.target.files[0]; if(!f)return;
+  setStatus('Rozpoznaję kod…','info');
+  const url=URL.createObjectURL(f), img=new Image();
+  img.onload=async()=>{
+    try{const result=await reader.decodeFromImageElement(img);URL.revokeObjectURL(url);run(String(result.text||'').trim().toUpperCase());}
+    catch(err){URL.revokeObjectURL(url);setStatus('Nie udało się odczytać kodu. Spróbuj ponownie albo wpisz kod ręcznie.','err');}
+  };
+  img.src=url;
+});
+function loans(){return JSON.parse(localStorage.getItem('bibLoans')||'{}')}
+function save(o){localStorage.setItem('bibLoans',JSON.stringify(o))}
+function begin(m){mode=m;input.value='';input.click()}
+function manual(m){mode=m;run(document.getElementById('manualCode').value.trim().toUpperCase())}
+function run(code){
+  const email=emailEl.value.trim().toLowerCase(), data=loans(), item=CATALOG[code];
+  if(!item)return setStatus('Kod nie istnieje w katalogu testowym: '+code,'err');
+  if(mode!=='confirm'&&(!email||!email.includes('@')))return setStatus('Najpierw wpisz szkolny e-mail.','err');
+  if(mode==='checkout'){
+    if(data[code]&&data[code].status!=='zwrócone')return setStatus('Ten egzemplarz jest już wypożyczony.','err');
+    const d=new Date();d.setDate(d.getDate()+28);
+    data[code]={email,status:'aktywne',due:d.toISOString().slice(0,10)};save(data);
+    setStatus('✓ Wypożyczono\n'+item.title+'\n'+item.author+'\nTermin zwrotu: '+data[code].due,'ok');
+  } else if(mode==='return'){
+    if(!data[code]||data[code].status==='zwrócone')return setStatus('Brak aktywnego wypożyczenia.','err');
+    if(data[code].email!==email)return setStatus('Ten egzemplarz jest wypożyczony na inne konto.','err');
+    data[code].status='zwrot_oczekuje';save(data);
+    setStatus('✓ Zwrot zgłoszony\n'+item.title+'\nWłóż książkę do skrzynki zwrotów.','ok');
+  } else if(mode==='confirm'){
+    if(document.getElementById('adminPin').value!=='2468')return setStatus('Błędny PIN administratora.','err');
+    if(!data[code]||data[code].status!=='zwrot_oczekuje')return setStatus('Ten egzemplarz nie czeka na potwierdzenie zwrotu.','err');
+    data[code].status='zwrócone';save(data);
+    setStatus('✓ Zwrot potwierdzony\n'+item.title,'ok');
+  }
+  loadLoans();
+}
+function loadLoans(){
+  const email=emailEl.value.trim().toLowerCase();
+  if(!email||!email.includes('@'))return setStatus('Najpierw wpisz szkolny e-mail.','err');
+  const rows=Object.entries(loans()).filter(([c,x])=>x.email===email&&x.status!=='zwrócone');
+  const card=document.getElementById('loansCard'), box=document.getElementById('loans');card.classList.remove('hidden');
+  if(!rows.length){box.innerHTML='<div class="meta" style="margin-top:10px">Brak aktualnych wypożyczeń.</div>';return}
+  box.innerHTML=rows.map(([c,x])=>`<div class="loan"><div class="title">${esc(CATALOG[c]?.title||c)}</div><div class="meta">${esc(CATALOG[c]?.author||'')}</div><div class="meta">${esc(c)} · termin ${esc(x.due)} · ${x.status==='zwrot_oczekuje'?'<span class="pending">zwrot oczekuje</span>':'aktywne'}</div></div>`).join('');
+}
+function setStatus(t,k){const e=document.getElementById('status');e.className='status '+k;e.textContent=t}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+</script>
+</body>
+</html>

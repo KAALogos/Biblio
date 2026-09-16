@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <base target="_top">
+  <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+  <style>
+    *{box-sizing:border-box} body{margin:0;background:#f4f5f7;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#171717}
+    .wrap{max-width:560px;margin:auto;padding:20px 14px 48px}.hero{padding:8px 2px 18px}
+    h1{font-size:27px;margin:0 0 4px}.sub{color:#6b7280;font-size:14px}
+    .card{background:white;border:1px solid #e5e7eb;border-radius:18px;padding:16px;margin:0 0 14px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+    input{width:100%;padding:14px;border:1px solid #d1d5db;border-radius:12px;font-size:16px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+    button{border:0;border-radius:13px;padding:15px 12px;font-weight:700;font-size:16px;cursor:pointer}
+    .primary{background:#111827;color:white}.secondary{background:#e5e7eb;color:#111827}.return{background:#e8f5ec;color:#185b34}.admin{background:#fff0d6;color:#7a4d00}
+    .wide{grid-column:1/-1}.status{display:none;padding:13px;border-radius:12px;margin-top:12px;white-space:pre-line}
+    .ok{display:block;background:#e9f8ee;color:#17633b}.err{display:block;background:#feecec;color:#a32626}.info{display:block;background:#eef2f7;color:#374151}
+    .loan{padding:12px 0;border-top:1px solid #eee}.loan:first-child{border-top:0}.title{font-weight:700}.meta{color:#6b7280;font-size:13px;margin-top:2px}.pending{color:#925d00;font-weight:700}
+    .hidden{display:none}.tiny{font-size:12px;color:#6b7280;margin-top:10px}
+    #cameraInput{display:none}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <h1>Biblioteka SLO 5</h1>
+    <div class="sub">działający prototyp self-service</div>
+  </div>
+
+  <div class="card">
+    <label class="sub">Twój szkolny e-mail</label>
+    <input id="email" type="email" placeholder="uczen@szkola.pl" autocomplete="email">
+
+    <div class="grid">
+      <button class="primary" onclick="begin('checkout')">📷 Wypożycz</button>
+      <button class="return" onclick="begin('return')">↩️ Oddaj</button>
+      <button class="secondary wide" onclick="loadLoans()">📚 Moje książki</button>
+    </div>
+
+    <input id="cameraInput" type="file" accept="image/*" capture="environment">
+
+    <div style="margin-top:12px">
+      <input id="manualCode" placeholder="albo wpisz kod, np. LEK000604">
+      <div class="grid">
+        <button class="secondary" onclick="manual('checkout')">Wypożycz kod</button>
+        <button class="secondary" onclick="manual('return')">Oddaj kod</button>
+      </div>
+    </div>
+
+    <div id="status" class="status"></div>
+  </div>
+
+  <div id="loansCard" class="card hidden">
+    <div class="title">Moje książki</div>
+    <div id="loans"></div>
+  </div>
+
+  <div class="card">
+    <div class="title">Administrator / skrzynka zwrotów</div>
+    <div class="tiny">PIN demonstracyjny: 2468</div>
+    <input id="adminPin" placeholder="PIN administratora" inputmode="numeric" style="margin-top:10px">
+    <div class="grid">
+      <button class="admin wide" onclick="begin('confirm')">✓ Zeskanuj i potwierdź zwrot</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let mode='checkout';
+const reader = new ZXing.BrowserMultiFormatReader();
+const emailEl = document.getElementById('email');
+const input = document.getElementById('cameraInput');
+
+emailEl.value = localStorage.getItem('bibEmail') || '';
+emailEl.addEventListener('change',()=>localStorage.setItem('bibEmail', emailEl.value.trim()));
+
+input.addEventListener('change', async e => {
+  const f=e.target.files && e.target.files[0]; if(!f) return;
+  setStatus('Rozpoznaję kod…','info');
+  const url=URL.createObjectURL(f);
+  const img=new Image();
+  img.onload=async()=>{
+    try{
+      const result=await reader.decodeFromImageElement(img);
+      URL.revokeObjectURL(url);
+      run(String(result.text||'').trim().toUpperCase());
+    }catch(err){
+      URL.revokeObjectURL(url);
+      setStatus('Nie udało się odczytać kodu ze zdjęcia. Spróbuj bliżej, poziomo i przy dobrym świetle — albo wpisz kod ręcznie.','err');
+    }
+  };
+  img.src=url;
+});
+
+function begin(m){ mode=m; input.value=''; input.click(); }
+function manual(m){ mode=m; run(document.getElementById('manualCode').value.trim().toUpperCase()); }
+
+function run(code){
+  if(!code) return setStatus('Brak kodu.','err');
+  const email=emailEl.value.trim();
+  if(mode!=='confirm' && (!email || !email.includes('@'))) return setStatus('Najpierw wpisz szkolny e-mail.','err');
+  setStatus('Przetwarzam '+code+'…','info');
+
+  let call = google.script.run.withFailureHandler(showErr).withSuccessHandler(res=>{
+    let t='Gotowe.';
+    if(mode==='checkout') t=`✓ Wypożyczono\n${res.title}\n${res.author||''}\nTermin zwrotu: ${res.due}`;
+    if(mode==='return') t=`✓ Zwrot zgłoszony\n${res.title}\nWłóż książkę do skrzynki zwrotów.`;
+    if(mode==='confirm') t=`✓ Zwrot potwierdzony\n${res.title}`;
+    setStatus(t,'ok'); loadLoans();
+  });
+
+  if(mode==='checkout') call.checkout(code,email);
+  if(mode==='return') call.requestReturn(code,email);
+  if(mode==='confirm') call.confirmReturn(code,document.getElementById('adminPin').value);
+}
+
+function loadLoans(){
+  const email=emailEl.value.trim();
+  if(!email || !email.includes('@')) return setStatus('Najpierw wpisz szkolny e-mail.','err');
+  localStorage.setItem('bibEmail',email);
+  google.script.run.withFailureHandler(showErr).withSuccessHandler(list=>{
+    const card=document.getElementById('loansCard'), box=document.getElementById('loans');
+    card.classList.remove('hidden');
+    if(!list.length){box.innerHTML='<div class="meta" style="margin-top:10px">Brak aktualnych wypożyczeń.</div>';return;}
+    box.innerHTML=list.map(x=>`<div class="loan">
+      <div class="title">${esc(x.title)}</div>
+      <div class="meta">${esc(x.author||'')}</div>
+      <div class="meta">${esc(x.code)} · termin ${esc(x.due)} · ${x.status==='zwrot_oczekuje'?'<span class="pending">zwrot oczekuje</span>':'aktywne'}</div>
+    </div>`).join('');
+  }).getMyLoans(email);
+}
+function setStatus(t,k){const e=document.getElementById('status');e.className='status '+k;e.textContent=t}
+function showErr(e){setStatus((e&&e.message?e.message:String(e)).replace(/^Exception:\s*/,''),'err')}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+</script>
+</body>
+</html>
