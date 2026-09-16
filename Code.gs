@@ -3,27 +3,12 @@ const CONFIG = {
   ADMIN_PIN: '2468'
 };
 
-const CATALOG = {"LEK000599": {"title": "Zemsta", "author": "Aleksander Fredro"}, "LEK000600": {"title": "Romeo i Julia", "author": "William Shakespeare"}, "LEK000601": {"title": "Konrad Wallenrod", "author": "Adam Mickiewicz"}, "LEK000603": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000604": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000661": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000662": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000663": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000664": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000665": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000666": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000667": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000668": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000669": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000670": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000671": {"title": "Nowy wspaniały świat", "author": "Aldous Huxley"}, "LEK000672": {"title": "Madame", "author": "Antoni Libera"}, "LEK000673": {"title": "Madame", "author": "Antoni Libera"}};
+const CATALOG = {"LEK000599":{"title":"Zemsta","author":"Aleksander Fredro"},"LEK000600":{"title":"Romeo i Julia","author":"William Shakespeare"},"LEK000601":{"title":"Konrad Wallenrod","author":"Adam Mickiewicz"},"LEK000603":{"title":"Mitologia. Wierzenia i podania Greków i Rzymian","author":"Jan Parandowski"},"LEK000604":{"title":"Mitologia. Wierzenia i podania Greków i Rzymian","author":"Jan Parandowski"},"LEK000655":{"title":"Skąpiec : [dramat]","author":"Molière"},"LEK000661":{"title":"Mitologia. Wierzenia i podania Greków i Rzymian","author":"Jan Parandowski"},"LEK000662":{"title":"Mitologia. Wierzenia i podania Greków i Rzymian","author":"Jan Parandowski"},"LEK000663":{"title":"Mitologia. Wierzenia i podania Greków i Rzymian","author":"Jan Parandowski"},"LEK000664":{"title":"Mitologia. Wierzenia i podania Greków i Rzymian","author":"Jan Parandowski"},"LEK000665":{"title":"Mitologia. Wierzenia i podania Greków i Rzymian","author":"Jan Parandowski"},"LEK000666":{"title":"Mitologia. Wierzenia i podania Greków i Rzymian","author":"Jan Parandowski"},"LEK000667":{"title":"Mitologia. Wierzenia i podania Greków i Rzymian","author":"Jan Parandowski"},"LEK000668":{"title":"Mitologia. Wierzenia i podania Greków i Rzymian","author":"Jan Parandowski"},"LEK000669":{"title":"Mitologia. Wierzenia i podania Greków i Rzymian","author":"Jan Parandowski"},"LEK000670":{"title":"Mitologia. Wierzenia i podania Greków i Rzymian","author":"Jan Parandowski"},"LEK000671":{"title":"Nowy wspaniały świat","author":"Aldous Huxley"},"LEK000672":{"title":"Madame","author":"Antoni Libera"},"LEK000673":{"title":"Madame","author":"Antoni Libera"}};
 
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('Index')
     .setTitle('Biblioteka SLO 5 — MVP')
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
-}
-
-function getCatalogItem(code) {
-  code = normalizeCode_(code);
-  const item = CATALOG[code];
-  if (!item) return null;
-  const loan = getLoans_()[code] || null;
-  return {
-    code,
-    title: item.title,
-    author: item.author,
-    status: loan ? loan.status : 'dostępna',
-    borrower: loan ? loan.email : '',
-    due: loan ? loan.due : ''
-  };
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover');
 }
 
 function getMyLoans(email) {
@@ -32,16 +17,16 @@ function getMyLoans(email) {
   return Object.keys(loans)
     .filter(code => loans[code].email === email && loans[code].status !== 'zwrócone')
     .map(code => {
-      const item = CATALOG[code] || { title: code, author: '' };
+      const item = getItem_(code);
       return { code, title:item.title, author:item.author, ...loans[code] };
     })
     .sort((a,b) => String(a.due).localeCompare(String(b.due)));
 }
 
-function checkout(code, email) {
-  code = normalizeCode_(code);
+function checkout(rawCode, email) {
+  const code = normalizeCode_(rawCode);
   email = normalizeEmail_(email);
-  if (!CATALOG[code]) throw new Error('Nie ma takiego kodu w katalogu testowym: ' + code);
+  const item = getItem_(code);
 
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
@@ -50,7 +35,6 @@ function checkout(code, email) {
     if (loans[code] && loans[code].status !== 'zwrócone') {
       throw new Error('Ten egzemplarz jest już wypożyczony lub czeka na potwierdzenie zwrotu.');
     }
-
     const now = new Date();
     const due = new Date(now.getTime() + CONFIG.LOAN_DAYS * 86400000);
     loans[code] = {
@@ -61,15 +45,16 @@ function checkout(code, email) {
     };
     saveLoans_(loans);
     log_('WYPOŻYCZENIE', code, email);
-    return { ok:true, code, title:CATALOG[code].title, author:CATALOG[code].author, due:loans[code].due };
+    return { ok:true, code, title:item.title, author:item.author, due:loans[code].due };
   } finally {
     lock.releaseLock();
   }
 }
 
-function requestReturn(code, email) {
-  code = normalizeCode_(code);
+function requestReturn(rawCode, email) {
+  const code = normalizeCode_(rawCode);
   email = normalizeEmail_(email);
+  const item = getItem_(code);
 
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
@@ -83,14 +68,15 @@ function requestReturn(code, email) {
     loans[code] = loan;
     saveLoans_(loans);
     log_('ZGŁOSZENIE_ZWROTU', code, email);
-    return { ok:true, code, title:(CATALOG[code]||{title:code}).title };
+    return { ok:true, code, title:item.title };
   } finally {
     lock.releaseLock();
   }
 }
 
-function confirmReturn(code, pin) {
-  code = normalizeCode_(code);
+function confirmReturn(rawCode, pin) {
+  const code = normalizeCode_(rawCode);
+  const item = getItem_(code);
   if (String(pin) !== CONFIG.ADMIN_PIN) throw new Error('Błędny PIN administratora.');
 
   const lock = LockService.getScriptLock();
@@ -104,7 +90,7 @@ function confirmReturn(code, pin) {
     loans[code] = loan;
     saveLoans_(loans);
     log_('POTWIERDZENIE_ZWROTU', code, loan.email);
-    return { ok:true, code, title:(CATALOG[code]||{title:code}).title };
+    return { ok:true, code, title:item.title };
   } finally {
     lock.releaseLock();
   }
@@ -115,6 +101,14 @@ function resetDemo(pin) {
   PropertiesService.getScriptProperties().deleteProperty('LOANS');
   PropertiesService.getScriptProperties().deleteProperty('LOG');
   return true;
+}
+
+function getItem_(code) {
+  if (CATALOG[code]) return CATALOG[code];
+  if (/^(LEK|LTZN|SZTFIL|KLO|OWS|WSPL|HIS|POE|KLP)\d+$/i.test(code)) {
+    return { title:'Egzemplarz ' + code, author:'' };
+  }
+  throw new Error('Kod ma nieprawidłowy format: ' + code);
 }
 
 function getLoans_() {
@@ -130,9 +124,10 @@ function log_(action, code, email) {
   props.setProperty('LOG', JSON.stringify(log.slice(-500)));
 }
 function normalizeCode_(v) {
-  const code = String(v || '').trim().toUpperCase();
-  if (!code) throw new Error('Brak kodu.');
-  return code;
+  const raw = String(v || '').trim().replace(/[\s\-]+/g, '').toUpperCase();
+  if (!raw) throw new Error('Brak kodu.');
+  const m = raw.match(/(LEK|LTZN|SZTFIL|KLO|OWS|WSPL|HIS|POE|KLP)\d+/);
+  return m ? m[0] : raw;
 }
 function normalizeEmail_(v) {
   const email = String(v || '').trim().toLowerCase();

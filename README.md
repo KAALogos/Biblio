@@ -1,4 +1,30 @@
-# Biblioteka SLO 5 — MVP v0.3
+# Biblioteka SLO 5 — MVP v0.4
+
+Naprawiono dwa błędy z v0.3:
+
+1. Skanowanie: zamiast odczytu pełnego zdjęcia przez stare `@zxing/library`
+   używany jest `html5-qrcode`. Są dwa tryby:
+   - kamera na żywo,
+   - zrobienie / wybranie zdjęcia (odczyt zdjęcia: natywny BarcodeDetector + ZXing z wieloma próbami skali, obrotu i kadru; `html5-qrcode` jako ostatnia próba).
+2. System nie blokuje już poprawnych kodów eBiblio tylko dlatego, że nie ma jeszcze
+   pełnej bazy metadanych. Akceptowane rodziny kodów:
+   `LEK`, `LTZN`, `SZTFIL`, `KLO`, `OWs`, `WsPl`, `HIS`, `POE`, `KLP`.
+
+`LEK000655` ma już metadane testowe: **Molière, Skąpiec**.
+
+## Test GitHub Pages
+Podmień tylko `demo_local.html`. Po publikacji:
+- wpisz dowolny testowy e-mail,
+- ręcznie wpisz `LEK000655` i kliknij „Wypożycz kod”,
+- następnie sprawdź kamerę na żywo,
+- potem tryb „zdjęcie”.
+
+## Apps Script
+`Index.html` i `Code.gs` są również zaktualizowane do tego samego modelu.
+
+---
+
+## Instrukcje z v0.3
 
 To jest DZIAŁAJĄCY PROTOTYP systemu, nie baza danych.
 

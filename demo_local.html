@@ -2,45 +2,72 @@
 <html lang="pl">
 <head>
   <meta charset="utf-8">
-  <base target="_top">
-  <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Biblioteka SLO 5 — MVP</title>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="zxing.min.js"></script>
+  <script>window.ZXing||document.write('<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"><\/script>')</script>
   <style>
-    *{box-sizing:border-box} body{margin:0;background:#f4f5f7;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#171717}
-    .wrap{max-width:560px;margin:auto;padding:20px 14px 48px}.hero{padding:8px 2px 18px}
-    h1{font-size:27px;margin:0 0 4px}.sub{color:#6b7280;font-size:14px}
+    *{box-sizing:border-box}
+    body{margin:0;background:#f4f5f7;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#171717}
+    .wrap{max-width:580px;margin:auto;padding:20px 14px 48px}
+    .hero{padding:8px 2px 18px}
+    h1{font-size:27px;margin:0 0 4px}
+    .sub,.tiny{color:#6b7280;font-size:14px}
+    .tiny{font-size:12px;margin-top:8px}
     .card{background:white;border:1px solid #e5e7eb;border-radius:18px;padding:16px;margin:0 0 14px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
     input{width:100%;padding:14px;border:1px solid #d1d5db;border-radius:12px;font-size:16px}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
     button{border:0;border-radius:13px;padding:15px 12px;font-weight:700;font-size:16px;cursor:pointer}
-    .primary{background:#111827;color:white}.secondary{background:#e5e7eb;color:#111827}.return{background:#e8f5ec;color:#185b34}.admin{background:#fff0d6;color:#7a4d00}
-    .wide{grid-column:1/-1}.status{display:none;padding:13px;border-radius:12px;margin-top:12px;white-space:pre-line}
-    .ok{display:block;background:#e9f8ee;color:#17633b}.err{display:block;background:#feecec;color:#a32626}.info{display:block;background:#eef2f7;color:#374151}
-    .loan{padding:12px 0;border-top:1px solid #eee}.loan:first-child{border-top:0}.title{font-weight:700}.meta{color:#6b7280;font-size:13px;margin-top:2px}.pending{color:#925d00;font-weight:700}
-    .hidden{display:none}.tiny{font-size:12px;color:#6b7280;margin-top:10px}
-    #cameraInput{display:none}
+    .primary{background:#111827;color:white}
+    .secondary{background:#e5e7eb;color:#111827}
+    .return{background:#e8f5ec;color:#185b34}
+    .admin{background:#fff0d6;color:#7a4d00}
+    .danger{background:#feecec;color:#a32626}
+    .wide{grid-column:1/-1}
+    .status{display:none;padding:13px;border-radius:12px;margin-top:12px;white-space:pre-line;line-height:1.4}
+    .ok{display:block;background:#e9f8ee;color:#17633b}
+    .err{display:block;background:#feecec;color:#a32626}
+    .info{display:block;background:#eef2f7;color:#374151}
+    .loan{padding:12px 0;border-top:1px solid #eee}
+    .loan:first-child{border-top:0}
+    .title{font-weight:700}
+    .meta{color:#6b7280;font-size:13px;margin-top:2px}
+    .pending{color:#925d00;font-weight:700}
+    .hidden{display:none!important}
+    #photoInput{display:none}
+    #scannerCard{border:2px solid #111827}
+    #reader{width:100%;overflow:hidden;border-radius:12px;margin-top:12px}
+    #reader video{border-radius:12px}
+    .scanhead{display:flex;justify-content:space-between;align-items:center;gap:10px}
+    .scanhead button{width:auto;padding:10px 12px;font-size:14px}
+    .badge{display:inline-block;background:#eef2f7;padding:4px 8px;border-radius:999px;font-size:12px;color:#4b5563}
   </style>
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <h1>Biblioteka SLO 5</h1>
-    <div class="sub">działający prototyp self-service</div>
+    <div class="sub">MVP self-service · skanuje kody eBiblio</div>
   </div>
 
   <div class="card">
     <label class="sub">Twój szkolny e-mail</label>
-    <input id="email" type="email" placeholder="uczen@szkola.pl" autocomplete="email">
+    <input id="email" type="email" placeholder="uczen@slo5.edu.pl" autocomplete="email">
 
     <div class="grid">
-      <button class="primary" onclick="begin('checkout')">📷 Wypożycz</button>
-      <button class="return" onclick="begin('return')">↩️ Oddaj</button>
+      <button class="primary" onclick="startLive('checkout')">📷 Wypożycz — kamera</button>
+      <button class="return" onclick="startLive('return')">↩️ Oddaj — kamera</button>
+      <button class="secondary" onclick="choosePhoto('checkout')">🖼️ Wypożycz — zdjęcie</button>
+      <button class="secondary" onclick="choosePhoto('return')">🖼️ Oddaj — zdjęcie</button>
       <button class="secondary wide" onclick="loadLoans()">📚 Moje książki</button>
     </div>
 
-    <input id="cameraInput" type="file" accept="image/*" capture="environment">
+    <input id="photoInput" type="file" accept="image/*" capture="environment">
 
-    <div style="margin-top:12px">
-      <input id="manualCode" placeholder="albo wpisz kod, np. LEK000604">
+    <div style="margin-top:14px">
+      <label class="sub">Albo wpisz kod ręcznie</label>
+      <input id="manualCode" placeholder="np. LEK000655" autocomplete="off" autocapitalize="characters">
       <div class="grid">
         <button class="secondary" onclick="manual('checkout')">Wypożycz kod</button>
         <button class="secondary" onclick="manual('return')">Oddaj kod</button>
@@ -48,6 +75,17 @@
     </div>
 
     <div id="status" class="status"></div>
+  </div>
+
+  <div id="scannerCard" class="card hidden">
+    <div class="scanhead">
+      <div>
+        <div class="title">Skaner kodu</div>
+        <div class="tiny">Nakieruj kamerę na cały kod paskowy.</div>
+      </div>
+      <button class="danger" onclick="stopLive()">Zamknij</button>
+    </div>
+    <div id="reader"></div>
   </div>
 
   <div id="loansCard" class="card hidden">
@@ -60,65 +98,344 @@
     <div class="tiny">PIN demonstracyjny: 2468</div>
     <input id="adminPin" placeholder="PIN administratora" inputmode="numeric" style="margin-top:10px">
     <div class="grid">
-      <button class="admin wide" onclick="begin('confirm')">✓ Zeskanuj i potwierdź zwrot</button>
+      <button class="admin" onclick="startLive('confirm')">✓ Potwierdź kamerą</button>
+      <button class="secondary" onclick="choosePhoto('confirm')">🖼️ Ze zdjęcia</button>
+      <button class="secondary wide" onclick="manual('confirm')">Potwierdź wpisany kod</button>
     </div>
   </div>
 </div>
 
 <script>
-const CATALOG={"LEK000599": {"title": "Zemsta", "author": "Aleksander Fredro"}, "LEK000600": {"title": "Romeo i Julia", "author": "William Shakespeare"}, "LEK000601": {"title": "Konrad Wallenrod", "author": "Adam Mickiewicz"}, "LEK000603": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000604": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000661": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000662": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000663": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000664": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000665": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000666": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000667": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000668": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000669": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000670": {"title": "Mitologia. Wierzenia i podania Greków i Rzymian", "author": "Jan Parandowski"}, "LEK000671": {"title": "Nowy wspaniały świat", "author": "Aldous Huxley"}, "LEK000672": {"title": "Madame", "author": "Antoni Libera"}, "LEK000673": {"title": "Madame", "author": "Antoni Libera"}};
-let mode='checkout';
-const reader=new ZXing.BrowserMultiFormatReader();
-const emailEl=document.getElementById('email');
-const input=document.getElementById('cameraInput');
-emailEl.value=localStorage.getItem('bibEmail')||'';
-emailEl.addEventListener('change',()=>localStorage.setItem('bibEmail',emailEl.value.trim()));
-input.addEventListener('change', async e=>{
-  const f=e.target.files&&e.target.files[0]; if(!f)return;
-  setStatus('Rozpoznaję kod…','info');
-  const url=URL.createObjectURL(f), img=new Image();
-  img.onload=async()=>{
-    try{const result=await reader.decodeFromImageElement(img);URL.revokeObjectURL(url);run(String(result.text||'').trim().toUpperCase());}
-    catch(err){URL.revokeObjectURL(url);setStatus('Nie udało się odczytać kodu. Spróbuj ponownie albo wpisz kod ręcznie.','err');}
-  };
-  img.src=url;
-});
-function loans(){return JSON.parse(localStorage.getItem('bibLoans')||'{}')}
-function save(o){localStorage.setItem('bibLoans',JSON.stringify(o))}
-function begin(m){mode=m;input.value='';input.click()}
-function manual(m){mode=m;run(document.getElementById('manualCode').value.trim().toUpperCase())}
-function run(code){
-  const email=emailEl.value.trim().toLowerCase(), data=loans(), item=CATALOG[code];
-  if(!item)return setStatus('Kod nie istnieje w katalogu testowym: '+code,'err');
-  if(mode!=='confirm'&&(!email||!email.includes('@')))return setStatus('Najpierw wpisz szkolny e-mail.','err');
-  if(mode==='checkout'){
-    if(data[code]&&data[code].status!=='zwrócone')return setStatus('Ten egzemplarz jest już wypożyczony.','err');
-    const d=new Date();d.setDate(d.getDate()+28);
-    data[code]={email,status:'aktywne',due:d.toISOString().slice(0,10)};save(data);
-    setStatus('✓ Wypożyczono\n'+item.title+'\n'+item.author+'\nTermin zwrotu: '+data[code].due,'ok');
-  } else if(mode==='return'){
-    if(!data[code]||data[code].status==='zwrócone')return setStatus('Brak aktywnego wypożyczenia.','err');
-    if(data[code].email!==email)return setStatus('Ten egzemplarz jest wypożyczony na inne konto.','err');
-    data[code].status='zwrot_oczekuje';save(data);
-    setStatus('✓ Zwrot zgłoszony\n'+item.title+'\nWłóż książkę do skrzynki zwrotów.','ok');
-  } else if(mode==='confirm'){
-    if(document.getElementById('adminPin').value!=='2468')return setStatus('Błędny PIN administratora.','err');
-    if(!data[code]||data[code].status!=='zwrot_oczekuje')return setStatus('Ten egzemplarz nie czeka na potwierdzenie zwrotu.','err');
-    data[code].status='zwrócone';save(data);
-    setStatus('✓ Zwrot potwierdzony\n'+item.title,'ok');
+/* === Skaner kodów ze zdjęcia (BarcodeDetector + ZXing, wiele prób) === */
+function pickCode(texts){
+  texts=texts.filter(Boolean).map(String);
+  const lek=texts.find(t=>/(LEK|LTZN|SZTFIL|KLO|OWS|WSPL|HIS|POE|KLP)\s*-?\s*\d/i.test(t));
+  return lek||texts[0]||null;
+}
+function loadBitmap(file){
+  if(window.createImageBitmap){
+    return createImageBitmap(file,{imageOrientation:'from-image'}).catch(()=>createImageBitmap(file)).catch(()=>loadImg(file));
   }
-  loadLoans();
+  return loadImg(file);
 }
-function loadLoans(){
-  const email=emailEl.value.trim().toLowerCase();
-  if(!email||!email.includes('@'))return setStatus('Najpierw wpisz szkolny e-mail.','err');
-  const rows=Object.entries(loans()).filter(([c,x])=>x.email===email&&x.status!=='zwrócone');
-  const card=document.getElementById('loansCard'), box=document.getElementById('loans');card.classList.remove('hidden');
-  if(!rows.length){box.innerHTML='<div class="meta" style="margin-top:10px">Brak aktualnych wypożyczeń.</div>';return}
-  box.innerHTML=rows.map(([c,x])=>`<div class="loan"><div class="title">${esc(CATALOG[c]?.title||c)}</div><div class="meta">${esc(CATALOG[c]?.author||'')}</div><div class="meta">${esc(c)} · termin ${esc(x.due)} · ${x.status==='zwrot_oczekuje'?'<span class="pending">zwrot oczekuje</span>':'aktywne'}</div></div>`).join('');
+function loadImg(file){
+  return new Promise((ok,bad)=>{const u=URL.createObjectURL(file),i=new Image();
+    i.onload=()=>{URL.revokeObjectURL(u);ok(i)};i.onerror=e=>{URL.revokeObjectURL(u);bad(e)};i.src=u;});
 }
-function setStatus(t,k){const e=document.getElementById('status');e.className='status '+k;e.textContent=t}
-function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+function drawVariant(src,maxW,rot,crop){
+  const sw=src.width, sh=src.height;
+  let cx=0,cy=0,cw=sw,ch=sh;
+  if(crop){cw=sw*crop;ch=sh*crop;cx=(sw-cw)/2;cy=(sh-ch)/2;}
+  const scale=Math.min(1,maxW/Math.max(cw,ch));
+  const w=Math.round(cw*scale), h=Math.round(ch*scale);
+  const c=document.createElement('canvas');
+  const r=rot%180!==0;
+  c.width=r?h:w; c.height=r?w:h;
+  const g=c.getContext('2d',{willReadFrequently:true});
+  g.translate(c.width/2,c.height/2); g.rotate(rot*Math.PI/180);
+  g.drawImage(src,cx,cy,cw,ch,-w/2,-h/2,w,h);
+  return c;
+}
+let _zxReader=null;
+function zxReader(){
+  if(_zxReader||!window.ZXing) return _zxReader;
+  const Z=window.ZXing, hints=new Map();
+  hints.set(Z.DecodeHintType.TRY_HARDER,true);
+  hints.set(Z.DecodeHintType.POSSIBLE_FORMATS,[Z.BarcodeFormat.CODE_128,Z.BarcodeFormat.CODE_39,Z.BarcodeFormat.CODE_93,
+    Z.BarcodeFormat.EAN_13,Z.BarcodeFormat.EAN_8,Z.BarcodeFormat.UPC_A,Z.BarcodeFormat.ITF,Z.BarcodeFormat.CODABAR,
+    Z.BarcodeFormat.QR_CODE,Z.BarcodeFormat.DATA_MATRIX]);
+  _zxReader={r:new Z.MultiFormatReader(),hints};
+  _zxReader.r.setHints(hints);
+  return _zxReader;
+}
+function zxDecodeCanvas(c){
+  const Z=window.ZXing, R=zxReader(); if(!R) return null;
+  const lum=new Z.HTMLCanvasElementLuminanceSource(c);
+  for(const B of [Z.HybridBinarizer,Z.GlobalHistogramBinarizer]){
+    try{ return R.r.decode(new Z.BinaryBitmap(new B(lum)),R.hints).getText(); }catch(e){}
+  }
+  return null;
+}
+async function decodeBarcodeFile(file){
+  const src=await loadBitmap(file);
+  // 1) natywny detektor (Chrome/Android/ChromeOS, nowsze Safari)
+  if('BarcodeDetector' in window){
+    try{
+      const det=new BarcodeDetector();
+      for(const v of [[4000,0,null],[1600,0,null],[1600,90,null]]){
+        const found=await det.detect(v[0]===4000?src:drawVariant(src,v[0],v[1],v[2]));
+        const t=pickCode(found.map(f=>f.rawValue)); if(t) return t;
+      }
+    }catch(e){}
+  }
+  // 2) ZXing: różne rozdzielczości, obroty i przycięcia
+  const variants=[];
+  for(const crop of [null,0.6,0.35]) for(const w of [1400,900,2200]) for(const rot of [0,90]) variants.push([w,rot,crop]);
+  for(const rot of [45,-45,180]) variants.push([1400,rot,null]);
+  for(const v of variants){
+    const t=zxDecodeCanvas(drawVariant(src,v[0],v[1],v[2]));
+    if(t) return t;
+    await new Promise(r=>setTimeout(r,0));
+  }
+  if(!window.ZXing && !('BarcodeDetector' in window)) throw new Error('Biblioteka skanera nie załadowała się (sprawdź internet).');
+  return null;
+}
+/* === koniec skanera === */
+
+const CATALOG = {"LEK000599":{"title":"Zemsta","author":"Aleksander Fredro"},"LEK000600":{"title":"Romeo i Julia","author":"William Shakespeare"},"LEK000601":{"title":"Konrad Wallenrod","author":"Adam Mickiewicz"},"LEK000603":{"title":"Mitologia. Wierzenia i podania Greków i Rzymian","author":"Jan Parandowski"},"LEK000604":{"title":"Mitologia. Wierzenia i podania Greków i Rzymian","author":"Jan Parandowski"},"LEK000655":{"title":"Skąpiec : [dramat]","author":"Molière"},"LEK000661":{"title":"Mitologia. Wierzenia i podania Greków i Rzymian","author":"Jan Parandowski"},"LEK000662":{"title":"Mitologia. Wierzenia i podania Greków i Rzymian","author":"Jan Parandowski"},"LEK000663":{"title":"Mitologia. Wierzenia i podania Greków i Rzymian","author":"Jan Parandowski"},"LEK000664":{"title":"Mitologia. Wierzenia i podania Greków i Rzymian","author":"Jan Parandowski"},"LEK000665":{"title":"Mitologia. Wierzenia i podania Greków i Rzymian","author":"Jan Parandowski"},"LEK000666":{"title":"Mitologia. Wierzenia i podania Greków i Rzymian","author":"Jan Parandowski"},"LEK000667":{"title":"Mitologia. Wierzenia i podania Greków i Rzymian","author":"Jan Parandowski"},"LEK000668":{"title":"Mitologia. Wierzenia i podania Greków i Rzymian","author":"Jan Parandowski"},"LEK000669":{"title":"Mitologia. Wierzenia i podania Greków i Rzymian","author":"Jan Parandowski"},"LEK000670":{"title":"Mitologia. Wierzenia i podania Greków i Rzymian","author":"Jan Parandowski"},"LEK000671":{"title":"Nowy wspaniały świat","author":"Aldous Huxley"},"LEK000672":{"title":"Madame","author":"Antoni Libera"},"LEK000673":{"title":"Madame","author":"Antoni Libera"}};
+let mode = 'checkout';
+let scanner = null;
+let scannerRunning = false;
+
+const emailEl = document.getElementById('email');
+const photoInput = document.getElementById('photoInput');
+const catalog = CATALOG;
+
+emailEl.value = localStorage.getItem('bibEmail') || '';
+emailEl.addEventListener('change', () => localStorage.setItem('bibEmail', emailEl.value.trim()));
+
+function normalizeCode(v) {
+  const s = String(v || '').trim().replace(/[\s\-]+/g, '').toUpperCase();
+  const m = s.match(/(LEK|LTZN|SZTFIL|KLO|OWS|WSPL|HIS|POE|KLP)\d+/);
+  return m ? m[0] : s;
+}
+function loans() {
+  try { return JSON.parse(localStorage.getItem('bibLoans') || '{}'); }
+  catch { return {}; }
+}
+function save(o) {
+  localStorage.setItem('bibLoans', JSON.stringify(o));
+}
+
+async function startLive(nextMode) {
+  mode = nextMode;
+  if (mode !== 'confirm' && !validEmail()) return;
+  await stopLive();
+  document.getElementById('scannerCard').classList.remove('hidden');
+  setStatus('Uruchamiam kamerę…', 'info');
+
+  scanner = new Html5Qrcode('reader', {
+    formatsToSupport: [
+      Html5QrcodeSupportedFormats.CODE_128,
+      Html5QrcodeSupportedFormats.CODE_39,
+      Html5QrcodeSupportedFormats.EAN_13,
+      Html5QrcodeSupportedFormats.EAN_8,
+      Html5QrcodeSupportedFormats.ITF,
+      Html5QrcodeSupportedFormats.CODABAR
+    ],
+    verbose: false
+  });
+
+  try {
+    await scanner.start(
+      { facingMode: 'environment' },
+      { fps: 12, qrbox: { width: 320, height: 140 }, aspectRatio: 1.777778 },
+      async decodedText => {
+        if (!scannerRunning) return;
+        const code = normalizeCode(decodedText);
+        await stopLive();
+        setStatus('Odczytano: ' + code, 'info');
+        run(code);
+      },
+      () => {}
+    );
+    scannerRunning = true;
+    setStatus('Kamera działa. Nakieruj ją na kod paskowy.', 'info');
+  } catch (err) {
+    scannerRunning = false;
+    setStatus(
+      'Nie udało się uruchomić kamery. Zezwól przeglądarce na dostęp do aparatu albo użyj przycisku „zdjęcie”.\n' +
+      (err && err.message ? err.message : String(err || '')),
+      'err'
+    );
+  }
+}
+
+async function stopLive() {
+  if (scanner && scannerRunning) {
+    try { await scanner.stop(); } catch {}
+  }
+  if (scanner) {
+    try { await scanner.clear(); } catch {}
+  }
+  scanner = null;
+  scannerRunning = false;
+  document.getElementById('scannerCard').classList.add('hidden');
+  const readerEl = document.getElementById('reader');
+  readerEl.innerHTML = '';
+}
+
+function choosePhoto(nextMode) {
+  mode = nextMode;
+  if (mode !== 'confirm' && !validEmail()) return;
+  photoInput.value = '';
+  photoInput.click();
+}
+
+photoInput.addEventListener('change', async event => {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  document.getElementById('scannerCard').classList.remove('hidden');
+  setStatus('Rozpoznaję kod ze zdjęcia…', 'info');
+
+  const fileScanner = new Html5Qrcode('reader');
+  try {
+    let decodedText = null;
+    try { decodedText = await decodeBarcodeFile(file); } catch (e) {}
+    if (!decodedText) decodedText = await fileScanner.scanFile(file, true);
+    const code = normalizeCode(decodedText);
+    setStatus('Odczytano: ' + code, 'info');
+    run(code);
+  } catch (err) {
+    setStatus(
+      'Nie udało się odczytać kodu ze zdjęcia. Spróbuj zrobić zdjęcie bliżej, bez cienia i tak, aby cały kod był poziomo w kadrze. Możesz też użyć skanowania kamerą na żywo.\n' +
+      (err && err.message ? err.message : ''),
+      'err'
+    );
+  } finally {
+    try { await fileScanner.clear(); } catch {}
+    document.getElementById('reader').innerHTML = '';
+    document.getElementById('scannerCard').classList.add('hidden');
+  }
+});
+
+function manual(nextMode) {
+  mode = nextMode;
+  const code = normalizeCode(document.getElementById('manualCode').value);
+  run(code);
+}
+
+function validEmail() {
+  const email = emailEl.value.trim();
+  if (!email || !email.includes('@')) {
+    setStatus('Najpierw wpisz szkolny e-mail.', 'err');
+    return false;
+  }
+  localStorage.setItem('bibEmail', email);
+  return true;
+}
+
+function run(rawCode) {
+  const code = normalizeCode(rawCode);
+  if (!code) return setStatus('Brak kodu.', 'err');
+
+  const email = emailEl.value.trim().toLowerCase();
+  const data = loans();
+  const item = catalog[code] || fallbackItem(code);
+
+  if (!item) {
+    return setStatus('Kod ma nieprawidłowy format: ' + code, 'err');
+  }
+  if (mode !== 'confirm' && !validEmail()) return;
+
+  if (mode === 'checkout') {
+    if (data[code] && data[code].status !== 'zwrócone') {
+      return setStatus('Ten egzemplarz jest już wypożyczony lub czeka na potwierdzenie zwrotu.', 'err');
+    }
+    const d = new Date();
+    d.setDate(d.getDate() + 28);
+    data[code] = {
+      email,
+      status: 'aktywne',
+      due: localDate(d),
+      checkoutAt: new Date().toISOString()
+    };
+    save(data);
+    setStatus(
+      '✓ Wypożyczono\n' + displayTitle(code, item) +
+      (item.author ? '\n' + item.author : '') +
+      '\nTermin zwrotu: ' + data[code].due,
+      'ok'
+    );
+  } else if (mode === 'return') {
+    if (!data[code] || data[code].status === 'zwrócone') {
+      return setStatus('Brak aktywnego wypożyczenia tego egzemplarza.', 'err');
+    }
+    if (data[code].email !== email) {
+      return setStatus('Ten egzemplarz jest wypożyczony na inne konto.', 'err');
+    }
+    data[code].status = 'zwrot_oczekuje';
+    data[code].returnRequestedAt = new Date().toISOString();
+    save(data);
+    setStatus('✓ Zwrot zgłoszony\n' + displayTitle(code, item) + '\nWłóż książkę do skrzynki zwrotów.', 'ok');
+  } else if (mode === 'confirm') {
+    if (document.getElementById('adminPin').value !== '2468') {
+      return setStatus('Błędny PIN administratora.', 'err');
+    }
+    if (!data[code] || data[code].status !== 'zwrot_oczekuje') {
+      return setStatus('Ten egzemplarz nie czeka na potwierdzenie zwrotu.', 'err');
+    }
+    data[code].status = 'zwrócone';
+    data[code].returnedAt = new Date().toISOString();
+    save(data);
+    setStatus('✓ Zwrot potwierdzony\n' + displayTitle(code, item), 'ok');
+  }
+
+  document.getElementById('manualCode').value = '';
+  loadLoans(false);
+}
+
+function loadLoans(scroll = true) {
+  const email = emailEl.value.trim().toLowerCase();
+  if (!email || !email.includes('@')) return setStatus('Najpierw wpisz szkolny e-mail.', 'err');
+
+  const rows = Object.entries(loans())
+    .filter(([_, x]) => x.email === email && x.status !== 'zwrócone')
+    .sort((a, b) => String(a[1].due).localeCompare(String(b[1].due)));
+
+  const card = document.getElementById('loansCard');
+  const box = document.getElementById('loans');
+  card.classList.remove('hidden');
+
+  if (!rows.length) {
+    box.innerHTML = '<div class="meta" style="margin-top:10px">Brak aktualnych wypożyczeń.</div>';
+  } else {
+    box.innerHTML = rows.map(([code, x]) => {
+      const item = catalog[code] || {};
+      const state = x.status === 'zwrot_oczekuje'
+        ? '<span class="pending">zwrot oczekuje</span>'
+        : 'aktywne';
+      return `<div class="loan">
+        <div class="title">${esc(displayTitle(code, item))}</div>
+        <div class="meta">${esc(item.author || '')}</div>
+        <div class="meta">${esc(code)} · termin ${esc(x.due)} · ${state}</div>
+      </div>`;
+    }).join('');
+  }
+  if (scroll) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function fallbackItem(code) {
+  // W MVP akceptujemy wszystkie kody zgodne z rodzinami używanymi w eBiblio.
+  // Pełne metadane będą później podpinane z eksportu katalogu.
+  if (/^(LEK|LTZN|SZTFIL|KLO|OWS|WSPL|HIS|POE|KLP)\d+$/i.test(code)) {
+    return { title: 'Egzemplarz ' + code, author: '' };
+  }
+  return null;
+}
+function displayTitle(code, item) {
+  return item && item.title ? item.title : ('Egzemplarz ' + code);
+}
+function localDate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function setStatus(text, kind) {
+  const el = document.getElementById('status');
+  el.className = 'status ' + kind;
+  el.textContent = text;
+}
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
+  }[c]));
+}
+
+if (!window.isSecureContext) {
+  setStatus('Uwaga: skanowanie kamerą wymaga HTTPS. GitHub Pages spełnia ten warunek.', 'err');
+}
 </script>
 </body>
 </html>
