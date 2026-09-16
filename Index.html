@@ -62,10 +62,9 @@
 
   <div class="card" id="mainCard">
     <div class="grid">
-      <button class="primary" onclick="startLive('checkout')">📷 Wypożycz — kamera</button>
-      <button class="return" onclick="startLive('return')">↩️ Oddaj — kamera</button>
-      <button class="secondary" onclick="choosePhoto('checkout')">🖼️ Wypożycz — zdjęcie</button>
-      <button class="secondary" onclick="choosePhoto('return')">🖼️ Oddaj — zdjęcie</button>
+      <button class="primary" onclick="choosePhoto('checkout')">📷 Wypożycz książkę</button>
+      <button class="return" onclick="choosePhoto('return')">↩️ Oddaj książkę</button>
+      <div class="tiny wide" style="margin-top:0">Otworzy się aparat — zrób zdjęcie kodu paskowego z bliska.</div>
       <button class="secondary wide" onclick="loadReport()">👤 Moje konto i raport</button>
     </div>
 
@@ -75,8 +74,8 @@
       <label class="sub">Albo wpisz kod ręcznie</label>
       <input id="manualCode" placeholder="np. LEK000655" autocomplete="off" autocapitalize="characters">
       <div class="grid">
-        <button class="secondary" onclick="manual('checkout')">Wypożycz kod</button>
-        <button class="secondary" onclick="manual('return')">Oddaj kod</button>
+        <button class="secondary" onclick="manual('checkout')">Wypożycz książkę</button>
+        <button class="secondary" onclick="manual('return')">Oddaj książkę</button>
       </div>
     </div>
 
@@ -111,9 +110,8 @@
   <div id="adminCard" class="card hidden">
     <div class="title">Bibliotekarz — skrzynka zwrotów</div>
     <div class="grid">
-      <button class="admin" onclick="startLive('confirm')">✓ Potwierdź kamerą</button>
-      <button class="secondary" onclick="choosePhoto('confirm')">🖼️ Ze zdjęcia</button>
-      <button class="secondary wide" onclick="manual('confirm')">Potwierdź wpisany kod</button>
+      <button class="admin" onclick="choosePhoto('confirm')">📷 Potwierdź zwrot</button>
+      <button class="secondary" onclick="manual('confirm')">Potwierdź wpisany kod</button>
     </div>
     <div class="sect">Zwroty do potwierdzenia</div>
     <div id="admPending"></div>
